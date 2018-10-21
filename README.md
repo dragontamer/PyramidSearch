@@ -19,16 +19,16 @@ A major operation in the algorithm is the "next" operator, so a sort has to take
 regardless.
 
 There's no insertion or deletion in either of these algorithms. It is purely a 
-read-only search problem as a new table is constructed. As such, I began to search for 
-the fastest possible read-only data-structure to  search across a sorted list.
+read-only search problem as a new table is constructed.
 
-Leapfrog Triejoin, the original, claims to use a B-tree like structure. Although I haven't 
-found any implementation details published. Tributary Join uses a simple Binary-search, 
-and allegedly achieved higher performance than the original B-tree implementation. Which 
-makes sense: arrays are far more cache and memory friendly than pointers.
+Leapfrog Triejoin, the original, claims to use a B-tree like structure. Tributary Join 
+uses a simple Binary-search,  and allegedly achieved higher performance than the 
+original B-tree implementation. Which makes sense: arrays are far more cache and 
+memory friendly than pointers.
 
 Alas: Binary Search doesn't use the SIMD units (SSE or AVX on x86 platforms), while B-Trees 
-have relatively simple SIMD implementation. 
+have relatively simple SIMD implementation. Is it possible to achieve some of the linear
+memory benefits of Binary Search, while still using the SIMD-units of modern processors?
 
 In this repository, I'm trying to combine the SIMD-friendliness of B-Trees with the 
 advantages of BinarySearch. This new methodology I call the SIMDPyramid data-structure.
