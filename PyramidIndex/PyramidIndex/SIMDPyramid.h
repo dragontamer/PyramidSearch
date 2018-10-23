@@ -23,8 +23,12 @@ class SIMDPyramid
 public:
 	static const uint32_t FACTOR = 32;
 
-	SIMDPyramid(int32_t* array, uint32_t size);
-	bool pyramidSearch(int32_t needle);
+	SIMDPyramid(const int32_t* const array, const uint32_t size);
+	// Return the index, -1, or mainArraySize if it doesn't exist.
+	int32_t pyramidSearch(const int32_t needle);
 	~SIMDPyramid();
 };
 
+// For Benchmark Purposes
+#define BENCHMARK_TOTAL_INTS (1 << 26)
+int32_t * millionsOfInts();

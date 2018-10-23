@@ -23,7 +23,7 @@
     <ClCompile Include="pch.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SIMDSearch1.cpp">
+    <ClCompile Include="PyramidSearchBenchmark.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
