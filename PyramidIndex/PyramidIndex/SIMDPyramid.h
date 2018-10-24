@@ -16,19 +16,20 @@ class SIMDPyramid
 	// the SIMDPyramid needs to be rebuilt. Nonetheless, copying the
 	// SIMDPyramid seems convenient.
 
-	// shared_ptr allows the pyramid arrays to be cloned cheaply (only the pointer is copied)
-	std::vector<std::shared_ptr<int32_t[]>> pyramid;
+	// Be sure to erase properly with delete []
+	std::vector<std::shared_ptr<int32_t>> pyramid;
 	std::vector<uint32_t> pyramidSizes;
 
 public:
-	static const uint32_t FACTOR = 32;
+	static constexpr uint32_t FACTOR = 32;
 
 	SIMDPyramid(const int32_t* const array, const uint32_t size);
-	// Return the index, -1, or mainArraySize if it doesn't exist.
-	int32_t pyramidSearch(const int32_t needle);
+
+	// Returns the index
+	uint32_t pyramidSearch(const int32_t needle);
 	~SIMDPyramid();
 };
 
 // For Benchmark Purposes
-#define BENCHMARK_TOTAL_INTS (1 << 26)
+constexpr uint32_t BENCHMARK_TOTAL_INTS = 1 << 26;
 int32_t * millionsOfInts();

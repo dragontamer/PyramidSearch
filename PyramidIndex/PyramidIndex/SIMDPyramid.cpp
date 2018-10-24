@@ -25,6 +25,14 @@ int32_t * millionsOfInts() {
 	return bigArray;
 }
 
+static uint32_t roundUpDivision(uint32_t a, uint32_t b) {
+	return ((a - 1) / b) + 1;
+}
+
+static void LegacyInt32ArrayDeleter(int32_t* toDelete) {
+	delete[](toDelete);
+}
+
 SIMDPyramid::SIMDPyramid(const int32_t* const array, uint32_t size) : mainArray(array), mainArraySize(size)
 {
 	uint32_t lastStackSize = size;
@@ -36,21 +44,23 @@ SIMDPyramid::SIMDPyramid(const int32_t* const array, uint32_t size) : mainArray(
 		// SIMD-friendliness "rounds up" to the next FACTOR, so that 
 		// branchless code can search without worry about segfaults.
 
-		uint32_t newSize = lastStackSize / FACTOR;
+		// Rounding up division for positive numbers
+		uint32_t newSize = roundUpDivision(lastStackSize, FACTOR);
 		uint32_t roundedSize = ((newSize / FACTOR) + 1) * FACTOR;
 
-		this->pyramid.push_back(std::shared_ptr<int32_t[]>(new int32_t[roundedSize]));
+		auto toPushBack = std::shared_ptr<int32_t>(new int32_t[roundedSize], LegacyInt32ArrayDeleter);
+		this->pyramid.push_back(toPushBack);
 		this->pyramidSizes.push_back(newSize);
 
 		unsigned int i;
 
 		for (i = 0; i < newSize; i++) {
-			this->pyramid[pyramidDepth][i] = lastArray[i * FACTOR];
+			this->pyramid[pyramidDepth].get()[i] = lastArray[i * FACTOR];
 		}
 
 		// Fill up the buffer with "infinity" so that factorSearch works best
 		for (; i < roundedSize; i++) {
-			this->pyramid[pyramidDepth][i] = INT32_MAX;
+			this->pyramid[pyramidDepth].get()[i] = INT32_MAX;
 		}
 
 		pyramidDepth++;
@@ -63,7 +73,7 @@ SIMDPyramid::SIMDPyramid(const int32_t* const array, uint32_t size) : mainArray(
 // Returns the number of elements in the "haystack" that are 
 // less-than-or-equal to the needle. (Or: the needle is strictly-greater than haystack)
 // Always searches a FACTOR to be more branch-friendly.
-int32_t factorSearch(const int32_t* start, const int32_t needle) {
+uint32_t factorSearch(const int32_t* start, const int32_t needle) {
 
 	__m128i simdNeedle = _mm_set1_epi32(needle);
 	uint32_t indexToReturn = 0;
@@ -85,13 +95,12 @@ int32_t factorSearch(const int32_t* start, const int32_t needle) {
 	return indexToReturn + indexToReturn2;
 }
 
-int32_t SIMDPyramid::pyramidSearch(const int32_t needle) {
-
+uint32_t SIMDPyramid::pyramidSearch(const int32_t needle) {
 	// "Index" is the result of the previous pyramid's search.
-	int32_t index = 0;
+	uint32_t index = 0;
 
 	for (int i = this->pyramid.size()-1; i >= 0 ; i--) {
-		auto next_index = factorSearch(&(this->pyramid[i][index*SIMDPyramid::FACTOR]), needle);
+		auto next_index = factorSearch(&(this->pyramid[i].get()[index*SIMDPyramid::FACTOR]), needle);
 		// There are precisely 3 cases: a "left-side" next_index of 0, a "right side" next_index of >= FACTOR,
 		// and a "middle" next_index.
 
@@ -101,24 +110,27 @@ int32_t SIMDPyramid::pyramidSearch(const int32_t needle) {
 			// In either case, the correct value to return is simply the "current spot", which
 			// still needs to be up-converted to the final index.
 
-			if (this->pyramid[i][index*SIMDPyramid::FACTOR + next_index] == needle) {
+			// Aside from bigArray[0], I can't think of a unit-test for this case :-(
+			// This is correct for bigArray[0] but untested for other values.
+
+			if (this->pyramid[i].get()[index*SIMDPyramid::FACTOR + next_index] == needle) {
 				index = index * SIMDPyramid::FACTOR + next_index;
-				i++;
+				i--;
 				for (; i >= 0; i--) {
 					index = index * SIMDPyramid::FACTOR;
 				}
 				return index * SIMDPyramid::FACTOR;
 			}
 		}
-		else if (next_index >= SIMDPyramid::FACTOR) {
+		else if (index+next_index >= pyramidSizes[i]) {
 			// "Right side" case. We must search the next row, as far right as possible
-			index = index * SIMDPyramid::FACTOR + SIMDPyramid::FACTOR - 1;
+			index = pyramidSizes[i] - 1;
 		}
 		else {
 			// The less-than or equal case can be short-cutted here.
-			if (this->pyramid[i][index*SIMDPyramid::FACTOR + next_index] == needle) {
+			if (this->pyramid[i].get()[index*SIMDPyramid::FACTOR + next_index] == needle) {
 				index = index * SIMDPyramid::FACTOR + next_index;
-				i++;
+				i--;
 				for (; i >= 0; i--) {
 					index = index * SIMDPyramid::FACTOR;
 				}
@@ -129,16 +141,18 @@ int32_t SIMDPyramid::pyramidSearch(const int32_t needle) {
 		}
 	}
 
-	// Now search the main array. Two cases: we either in the beginning/middle, or we are at the end.
+	// I find it easier to think of the base-case with the FACTOR already
+	// in the index.
 	index *= SIMDPyramid::FACTOR;
 
-	if (index + SIMDPyramid::FACTOR < this->mainArraySize) {
+	// Now search the main array. Two cases: we either in the beginning/middle, or we are at the end.
+	if (index + SIMDPyramid::FACTOR <= this->mainArraySize) {
 		auto next_index = factorSearch(&(this->mainArray[index]), needle);
 		return index + next_index;
 	}
 	else {
 		// We don't have SIMDPyramid::FACTOR guarantee. We must carefully search between
-		// index and mainArraySize's last section. Just use simple for-loop sequential.
+		// index and mainArraySize's last section. Just use simple for-loop sequential for clarity
 		for (unsigned int  i = index; i < this->mainArraySize; i++) {
 			if (this->mainArray[i] == needle) {
 				return i;
@@ -149,8 +163,6 @@ int32_t SIMDPyramid::pyramidSearch(const int32_t needle) {
 	}
 }
 
-// Shared ptrs should clean themselves up. The passed in mainArray* is NOT the responsibility of
-// the SIMDPyramid class to clean up.
 SIMDPyramid::~SIMDPyramid()
 {
 }
