@@ -32,3 +32,12 @@ memory benefits of Binary Search, while still using the SIMD-units of modern pro
 
 In this repository, I'm trying to combine the SIMD-friendliness of B-Trees with the 
 advantages of BinarySearch. This new methodology I call the SIMDPyramid data-structure.
+
+Preliminary Results
+===================
+
+This "SIMD-Pyramid search" executes roughly 4x faster than std::binary_search (or really,
+std::lower_bound) over 256-Million integers. However, it takes many microseconds to build
+the SIMD-Pyramid (it is a O(n) operation to build the Pyramid: it requires walking and
+extracting 1/128 elements of the array for each section of the pyramid, assuming a 
+FACTOR=128).
